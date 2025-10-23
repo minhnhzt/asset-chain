@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 
+import type { AssetData } from '@/app/types';
+
 interface RegisterAssetFormProps {
-  onSuccess?: (assetData: any) => void;
+  onSuccess?: (assetData: AssetData) => void;
   onError?: (error: string) => void;
 }
 
@@ -31,7 +33,7 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
     null
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage(null);
 
@@ -88,7 +90,7 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
         }),
       });
 
-      const data = await response.json();
+  const data = (await response.json()) as { data?: AssetData; error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to register asset');
@@ -100,7 +102,7 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
       setLocation('');
       setMetadataCid('');
 
-      onSuccess?.(data.data);
+  if (data.data) onSuccess?.(data.data);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       setMessage({ type: 'error', text: errorMsg });

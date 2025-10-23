@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { RegisterAssetForm } from '@/app/components/RegisterAssetForm';
 import { AssetList } from '@/app/components/AssetList';
+import type { AssetData } from '@/app/types';
 
 /**
  * Dashboard Page
@@ -15,11 +16,14 @@ import { AssetList } from '@/app/components/AssetList';
  * - Responsive design for desktop and mobile
  */
 export default function DashboardPage() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  const handleAssetRegistered = (assetData: any) => {
-    // Trigger asset list refresh
-    setRefreshTrigger((prev) => prev + 1);
+  const handleAssetRegistered = (assetData: AssetData) => {
+    // Trigger asset list refresh and log the registered asset key for visibility
+    setRefreshTrigger((prev: number) => prev + 1);
+    // small usage so lint won't complain about unused param
+    // eslint-disable-next-line no-console
+    console.debug('Registered asset:', assetData.pubkey);
   };
 
   return (

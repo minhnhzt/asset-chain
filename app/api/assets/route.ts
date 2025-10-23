@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as anchor from '@coral-xyz/anchor';
 import { PublicKey, Connection } from '@solana/web3.js';
 
 // Cache for assets (in-memory, will be replaced with Redis in production)
