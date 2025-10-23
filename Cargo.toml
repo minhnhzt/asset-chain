@@ -1,0 +1,12 @@
+[workspace]
+members = ["programs/asset-manager"]
+exclude = ["programs/asset-registry"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+authors = ["Solana Asset MVP Team"]
+
+[profile.release]
+overflow-checks = true
