@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Clock;
 
-use crate::accounts::*;
+use crate::state::*;
 use crate::events::*;
 use crate::AssetRegistryError;
 
