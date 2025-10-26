@@ -29,7 +29,7 @@ pub struct Asset {
 }
 
 /// Asset status enum
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, AnchorSerialize, AnchorDeserialize)]
 pub enum AssetStatus {
     Active = 0,
     Maintenance = 1,

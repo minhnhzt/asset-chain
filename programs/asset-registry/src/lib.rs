@@ -7,8 +7,6 @@ mod instructions;
 use accounts::*;
 use instructions::*;
 
-pub use crate::AssetRegistryError;
-
 declare_id!("DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST");
 
 #[program]
