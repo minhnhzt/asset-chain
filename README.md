@@ -63,6 +63,7 @@
 | **Status Management** | ✅ Complete | 4-state lifecycle (ACTIVE/MAINTENANCE/RETIRED/DISPOSED) |
 | **History Tracking** | ✅ Complete | Immutable on-chain audit trail |
 | **CSV Export** | ✅ Complete | Download asset reports |
+| **Multi-Signature Workflows** | ✅ Complete | M-of-N approval thresholds for critical operations |
 
 ### Upcoming (Post-MVP)
 
@@ -70,7 +71,7 @@
 - [ ] Advanced KPIs (downtime %, ROI analysis)
 - [ ] Mobile app (React Native)
 - [ ] Mainnet support (production deployment)
-- [ ] Multi-signature workflows (DAO governance)
+- [ ] Blockchain-anchored multi-sig proofs (on-chain verification)
 
 ---
 
@@ -462,6 +463,97 @@ interface MaintenanceLog {
 - **Responsiveness:** Mobile-first design
 - **Color Scheme:** Blue/Indigo gradient
 - **Icons:** Text emojis + Tailwind SVG utilities
+
+---
+
+## 🔐 Multi-Signature Workflows
+
+### Overview
+
+**Multi-signature approval workflows** enable M-of-N governance for critical asset operations. Require multiple stakeholders to approve changes before execution.
+
+### Features
+
+- ✅ **Flexible Thresholds**: Configure any M-of-N (e.g., 2-of-3, 3-of-5)
+- ✅ **4 Request Types**: UPDATE_METADATA, CHANGE_STATUS, RETIRE_ASSET, ADD_APPROVER
+- ✅ **Real-Time Voting**: Instant notifications and status updates
+- ✅ **Audit Trail**: Immutable record of all approvals/rejections
+- ✅ **Automatic Execution**: Status changes when thresholds met
+
+### Use Cases
+
+| Scenario | Threshold | Benefit |
+|----------|-----------|---------|
+| Update asset location | 2-of-3 managers | Prevents unauthorized changes |
+| Move to maintenance | 1-of-2 technicians | Quick response time |
+| Retire asset | 3-of-4 directors | Strong governance |
+| Add approver | Majority (2-of-3) | Maintains transparency |
+
+### API Endpoints
+
+**Configure Multi-Sig**
+```typescript
+POST /api/multisig-config
+{
+  "assetId": "asset_123",
+  "approvers": ["wallet1", "wallet2", "wallet3"],
+  "requiredApprovals": 2,
+  "owner": "owner_wallet"
+}
+```
+
+**Create Approval Request**
+```typescript
+POST /api/multisig-requests
+{
+  "requestType": "UPDATE_METADATA",
+  "assetId": "asset_123",
+  "approvers": ["wallet1", "wallet2", "wallet3"],
+  "requiredApprovals": 2,
+  "requestData": { "newMetadataCid": "QmNewHash..." },
+  "createdBy": "requester_wallet"
+}
+```
+
+**Submit Vote**
+```typescript
+POST /api/multisig-requests/req_1
+{
+  "approverPubkey": "wallet1",
+  "approvalStatus": "APPROVED"
+}
+```
+
+### React Components
+
+1. **`MultiSigConfigForm`** - Set up approval groups and thresholds
+2. **`MultiSigRequestForm`** - Create approval requests
+3. **`MultiSigApprovalPanel`** - Approver dashboard with voting interface
+4. **`MultiSigRequestHistory`** - View all requests with filtering
+
+### Quick Example
+
+```typescript
+import MultiSigConfigForm from '@/app/components/MultiSigConfigForm';
+
+// 1. Configure multi-sig for asset
+<MultiSigConfigForm
+  assetId="asset_123"
+  ownerPubkey={wallet.publicKey.toString()}
+  onConfigCreated={(config) => console.log('Configured')}
+/>
+
+// 2. Create request (requires 2-of-3 approvals)
+// 3. Approvers vote
+// 4. When 2 approvals reached → Status changes to APPROVED
+// 5. Ready to execute on-chain
+```
+
+### Documentation
+
+- **Complete Guide:** [`docs/MULTISIG_WORKFLOWS.md`](docs/MULTISIG_WORKFLOWS.md)
+- **Integration Examples:** [`docs/MULTISIG_INTEGRATION_GUIDE.md`](docs/MULTISIG_INTEGRATION_GUIDE.md)
+- **Quick Reference:** [`docs/MULTISIG_QUICK_REFERENCE.md`](docs/MULTISIG_QUICK_REFERENCE.md)
 
 ---
 
