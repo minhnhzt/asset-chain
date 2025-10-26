@@ -2,9 +2,6 @@
 resolution = true
 skip-lint = false
 
-[toolchain]
-anchor_version = "0.32.1"
-
 [programs.localnet]
 asset_manager = "Dr9AHwYYJ666sBF1v3V5RpGXYndPgHVWNatmKXHLdXg6"
 asset_registry = "DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST"
