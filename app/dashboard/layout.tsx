@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SolanaWalletProvider } from '@/app/providers/WalletProvider';
+import { WalletConnectButton } from '@/app/components/WalletConnectButton';
 
 export default function DashboardLayout({
   children,
@@ -28,13 +30,14 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Sidebar */}
-      <aside
-        className={`fixed left-0 top-0 h-screen bg-slate-900 border-r border-slate-800 transition-all duration-300 z-40 ${
-          sidebarOpen ? 'w-64' : 'w-20'
-        }`}
-      >
+    <SolanaWalletProvider>
+      <div className="min-h-screen bg-slate-950">
+        {/* Sidebar */}
+        <aside
+          className={`fixed left-0 top-0 h-screen bg-slate-900 border-r border-slate-800 transition-all duration-300 z-40 ${
+            sidebarOpen ? 'w-64' : 'w-20'
+          }`}
+        >
         {/* Logo */}
         <div className="h-16 border-b border-slate-800 flex items-center justify-between px-4">
           {sidebarOpen && (
@@ -96,15 +99,7 @@ export default function DashboardLayout({
             </button>
 
             {/* Wallet Info */}
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center text-sm font-bold text-slate-900">
-                👤
-              </div>
-              <div className="text-sm">
-                <div className="text-white font-medium">Connected</div>
-                <div className="text-slate-400 text-xs">Phantom Wallet</div>
-              </div>
-            </div>
+            <WalletConnectButton />
           </div>
         </header>
 
@@ -113,6 +108,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
-    </div>
+      </div>
+    </SolanaWalletProvider>
   );
 }

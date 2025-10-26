@@ -1,0 +1,88 @@
+yarn run v1.22.22
+warning ../../package.json: No license field
+$ next build
+ ⚠ turbopack.root should be absolute, using: /home/minh/projects/my-solana-app
+   ▲ Next.js 15.5.4
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 56s
+   Linting and checking validity of types ...
+
+./app/api/assets/route.ts
+2:21  Warning: 'Connection' is defined but never used.  @typescript-eslint/no-unused-vars
+3:10  Warning: 'AnchorProvider' is defined but never used.  @typescript-eslint/no-unused-vars
+3:26  Warning: 'Program' is defined but never used.  @typescript-eslint/no-unused-vars
+5:28  Warning: 'getAssetRegistryProgram' is defined but never used.  @typescript-eslint/no-unused-vars
+5:53  Warning: 'formatAssetStatus' is defined but never used.  @typescript-eslint/no-unused-vars
+8:8  Warning: 'AssetRegistryIDL' is defined but never used.  @typescript-eslint/no-unused-vars
+39:27  Warning: 'request' is defined but never used.  @typescript-eslint/no-unused-vars
+72:15  Warning: 'data' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/multisig-proofs/[requestId]/route.ts
+24:10  Warning: 'getProofFromId' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/components/MultiSigApprovalPanel.tsx
+19:10  Warning: 'loading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+19:19  Warning: 'setLoading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+29:6  Warning: React Hook useEffect has a missing dependency: 'fetchPendingRequests'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/components/MultiSigRequestHistory.tsx
+21:6  Warning: React Hook useEffect has a missing dependency: 'fetchRequests'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/components/WalletConnectButton.tsx
+51:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/dashboard/assets/page.tsx
+3:8  Warning: 'Link' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/hooks/useTransactionSigner.ts
+4:23  Warning: 'TransactionInstruction' is defined but never used.  @typescript-eslint/no-unused-vars
+42:26  Warning: 'lastValidBlockHeight' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/lib/blockchain.ts
+6:33  Warning: 'Transaction' is defined but never used.  @typescript-eslint/no-unused-vars
+25:9  Warning: 'programId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+33:9  Warning: 'programId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/lib/pinata.examples.ts
+479:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/16) ...
+   Generating static pages (4/16) 
+   Generating static pages (8/16) 
+   Generating static pages (12/16) 
+ ✓ Generating static pages (16/16)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    2.76 kB         108 kB
+├ ○ /_not-found                            992 B         103 kB
+├ ƒ /api/assets                            141 B         102 kB
+├ ƒ /api/ipfs/test                         141 B         102 kB
+├ ƒ /api/maintenance-logs                  141 B         102 kB
+├ ƒ /api/multisig-config                   141 B         102 kB
+├ ƒ /api/multisig-proofs                   141 B         102 kB
+├ ƒ /api/multisig-proofs/[requestId]       141 B         102 kB
+├ ƒ /api/multisig-requests                 141 B         102 kB
+├ ƒ /api/multisig-requests/[requestId]     141 B         102 kB
+├ ○ /dashboard                           2.02 kB         107 kB
+├ ○ /dashboard/approvals                 1.62 kB         104 kB
+├ ○ /dashboard/assets                    1.31 kB         103 kB
+├ ○ /dashboard/maintenance               1.33 kB         103 kB
+└ ○ /dashboard/settings                  1.54 kB         103 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/255-4efeec91c7871d79.js       45.7 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  └ other shared chunks (total)          1.97 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Done in 101.72s.

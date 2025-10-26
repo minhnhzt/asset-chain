@@ -2,8 +2,11 @@
 
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useTransactionSigner } from '@/app/hooks/useTransactionSigner';
+import { getExplorerUrl } from '@/app/config/solana';
 
 import type { AssetData } from '@/app/types';
+import { uploadAssetMetadata } from '@/app/lib/pinata';
 
 interface RegisterAssetFormProps {
   onSuccess?: (assetData: AssetData) => void;
@@ -16,19 +19,24 @@ interface RegisterAssetFormProps {
  * 
  * Features:
  * - Form validation for name, location, and metadata
+ * - Automatic IPFS upload via Pinata
  * - Loading state while processing
  * - Success/error notifications
- * - IPFS metadata CID input
  */
 export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
   onSuccess,
   onError,
 }) => {
-  const { publicKey, sendTransaction, connected } = useWallet();
+  const { publicKey, connected } = useWallet();
+  const { registerAsset } = useTransactionSigner();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
-  const [metadataCid, setMetadataCid] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [transactionSignature, setTransactionSignature] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
@@ -36,6 +44,7 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage(null);
+    setUploadProgress('');
 
     // Validate form
     if (!connected || !publicKey) {
@@ -45,8 +54,8 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
       return;
     }
 
-    if (!name.trim() || !location.trim() || !metadataCid.trim()) {
-      const errorMsg = 'All fields are required';
+    if (!name.trim() || !location.trim()) {
+      const errorMsg = 'Name and location are required';
       setMessage({ type: 'error', text: errorMsg });
       onError?.(errorMsg);
       return;
@@ -66,51 +75,71 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
       return;
     }
 
-    if (metadataCid.length > 256) {
-      const errorMsg = 'Metadata CID must be 256 characters or less';
-      setMessage({ type: 'error', text: errorMsg });
-      onError?.(errorMsg);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Call backend API to register asset
-      const response = await fetch('/api/assets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Step 1: Upload metadata to Pinata
+      setUploadProgress('Uploading metadata to IPFS...');
+      const metadataCid = await uploadAssetMetadata({
+        name,
+        location,
+        description: description || `Asset: ${name}`,
+        category: category || 'General',
+        image: imageUrl || '',
+        attributes: [
+          { trait_type: 'Location', value: location },
+          { trait_type: 'Category', value: category || 'General' },
+        ],
+      });
+
+      setUploadProgress('Metadata uploaded successfully!');
+
+      // Step 2: Register asset on blockchain
+      setUploadProgress('Registering asset on blockchain...');
+      const signature = await registerAsset(name, location, metadataCid);
+      
+      setTransactionSignature(signature);
+      setUploadProgress('Asset registered successfully!');
+
+      // Success
+      setMessage({ 
+        type: 'success', 
+        text: `Asset registered successfully! Transaction: ${signature.slice(0, 8)}...` 
+      });
+      setName('');
+      setLocation('');
+      setDescription('');
+      setCategory('');
+      setImageUrl('');
+      setUploadProgress('');
+
+      // Call success callback with mock data
+      if (onSuccess) {
+        const mockAssetData: AssetData = {
+          pubkey: '', // Would be derived from PDA
+          owner: publicKey!.toString(),
           name,
           location,
           metadata_cid: metadataCid,
-          walletPublicKey: publicKey.toString(),
-        }),
-      });
-
-  const data = (await response.json()) as { data?: AssetData; error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to register asset');
+          status: 0,
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000),
+        };
+        onSuccess(mockAssetData);
       }
-
-      // Success
-      setMessage({ type: 'success', text: 'Asset registered successfully!' });
-      setName('');
-      setLocation('');
-      setMetadataCid('');
-
-  if (data.data) onSuccess?.(data.data);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       setMessage({ type: 'error', text: errorMsg });
+      setUploadProgress('');
       onError?.(errorMsg);
     } finally {
       setLoading(false);
     }
   };
+
+  const explorerUrl = transactionSignature 
+    ? getExplorerUrl(transactionSignature, 'tx') 
+    : null;
 
   return (
     <form
@@ -157,27 +186,70 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
         <p className="text-xs text-gray-500 mt-1">{location.length}/256 characters</p>
       </div>
 
-      {/* IPFS Metadata CID */}
-      <div className="mb-6">
-        <label htmlFor="metadata" className="block text-sm font-medium text-gray-700 mb-2">
-          Metadata IPFS CID *
+      {/* Description (Optional) */}
+      <div className="mb-4">
+        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+          Description
         </label>
-        <input
-          id="metadata"
-          type="text"
-          value={metadataCid}
-          onChange={(e) => setMetadataCid(e.target.value)}
-          placeholder="e.g., QmXxxx..."
-          maxLength={256}
+        <textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="e.g., Heavy-duty forklift for warehouse operations"
+          rows={3}
           disabled={loading}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          required
+        />
+      </div>
+
+      {/* Category (Optional) */}
+      <div className="mb-4">
+        <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+          Category
+        </label>
+        <select
+          id="category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          disabled={loading}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+        >
+          <option value="">Select a category</option>
+          <option value="Equipment">Equipment</option>
+          <option value="Machinery">Machinery</option>
+          <option value="Vehicle">Vehicle</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Furniture">Furniture</option>
+          <option value="Tools">Tools</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      {/* Image URL (Optional) */}
+      <div className="mb-6">
+        <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-2">
+          Image URL
+        </label>
+        <input
+          id="imageUrl"
+          type="url"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://example.com/image.jpg"
+          disabled={loading}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Upload metadata to IPFS first and paste the CID here
+          Optional: URL to asset image
         </p>
-        <p className="text-xs text-gray-500">{metadataCid.length}/256 characters</p>
       </div>
+
+      {/* Upload Progress */}
+      {uploadProgress && (
+        <div className="mb-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-800 border border-blue-200">
+          {uploadProgress}
+        </div>
+      )}
 
       {/* Message */}
       {message && (
@@ -189,6 +261,16 @@ export const RegisterAssetForm: React.FC<RegisterAssetFormProps> = ({
           }`}
         >
           {message.text}
+          {message.type === 'success' && explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block mt-2 text-blue-600 hover:text-blue-800 underline text-xs"
+            >
+              View transaction on Solana Explorer →
+            </a>
+          )}
         </div>
       )}
 

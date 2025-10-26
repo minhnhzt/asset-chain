@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PublicKey } from '@solana/web3.js';
+import { uploadMaintenanceDetails } from '@/app/lib/pinata';
 
 interface MaintenanceLogEntry {
   performer: string;
@@ -67,19 +68,19 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/maintenance-logs
  * Add a maintenance log entry
- * Body: { assetId, note, ipfs_cid, performerPublicKey, walletPublicKey }
+ * Body: { assetId, note, action, performerPublicKey, walletPublicKey }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { assetId, note, ipfs_cid, performerPublicKey, walletPublicKey } = body;
+    const { assetId, note, action, performerPublicKey, walletPublicKey } = body;
 
     // Validate inputs
-    if (!assetId || !note || !ipfs_cid || !performerPublicKey || !walletPublicKey) {
+    if (!assetId || !note || !action || !performerPublicKey || !walletPublicKey) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields',
+          error: 'Missing required fields: assetId, note, action, performerPublicKey, walletPublicKey',
         },
         { status: 400 }
       );
@@ -100,34 +101,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate note and CID lengths
-    if (note.length > 256) {
+    // Validate note length
+    if (note.length > 128) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Note must be <= 256 characters',
+          error: 'Note must be <= 128 characters',
         },
         { status: 400 }
       );
     }
 
-    if (ipfs_cid.length > 256) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'IPFS CID must be <= 256 characters',
-        },
-        { status: 400 }
-      );
-    }
-
-    // TODO: Build and execute add_maintenance_log transaction
+    // Upload maintenance details to Pinata
+    const ipfsCid = await uploadMaintenanceDetails({
+      assetId,
+      performer: performerPublicKey,
+      action,
+      notes: note,
+      timestamp: new Date().toISOString(),
+    });
 
     const mockEntry: MaintenanceLogEntry = {
       performer: performerPublicKey,
       note,
       timestamp: Math.floor(Date.now() / 1000),
-      ipfs_cid,
+      ipfs_cid: ipfsCid,
     };
 
     return NextResponse.json(
@@ -135,6 +133,7 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Maintenance log entry added successfully',
         data: mockEntry,
+        ipfsCid,
         transactionRequired: true,
         instruction: 'add_maintenance_log',
       },

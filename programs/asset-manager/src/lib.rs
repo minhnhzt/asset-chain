@@ -4,8 +4,8 @@ use anchor_spl::associated_token::AssociatedToken;
 
 declare_id!("99GdmczATUfVdHEPVea3vgLSzyaGEMFJtuDgVUXmufe7");
 
-/// Maximum number of maintenance log entries per asset to prevent account bloat
-const MAX_LOG_ENTRIES: usize = 50;
+/// Maximum number of maintenance log entries per asset (limited to fit within 10KB account size)
+const MAX_LOG_ENTRIES: usize = 10;
 
 /// Maximum length for string fields to prevent excessive storage costs
 const MAX_STRING_LENGTH: usize = 256;

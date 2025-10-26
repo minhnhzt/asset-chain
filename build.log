@@ -1,0 +1,70 @@
+yarn run v1.22.22
+warning ../../package.json: No license field
+$ next build
+ ⚠ turbopack.root should be absolute, using: /home/minh/projects/my-solana-app
+   ▲ Next.js 15.5.4
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 3.3s
+   Linting and checking validity of types ...
+
+Failed to compile.
+
+./app/api/assets/route.ts
+2:21  Warning: 'Connection' is defined but never used.  @typescript-eslint/no-unused-vars
+3:10  Warning: 'AnchorProvider' is defined but never used.  @typescript-eslint/no-unused-vars
+3:26  Warning: 'Program' is defined but never used.  @typescript-eslint/no-unused-vars
+5:28  Warning: 'getAssetRegistryProgram' is defined but never used.  @typescript-eslint/no-unused-vars
+5:53  Warning: 'formatAssetStatus' is defined but never used.  @typescript-eslint/no-unused-vars
+8:8  Warning: 'AssetRegistryIDL' is defined but never used.  @typescript-eslint/no-unused-vars
+39:27  Warning: 'request' is defined but never used.  @typescript-eslint/no-unused-vars
+72:15  Warning: 'data' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./app/api/multisig-proofs/[requestId]/route.ts
+24:10  Warning: 'getProofFromId' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/components/MultiSigApprovalPanel.tsx
+19:10  Warning: 'loading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+19:19  Warning: 'setLoading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+29:6  Warning: React Hook useEffect has a missing dependency: 'fetchPendingRequests'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/components/MultiSigRequestHistory.tsx
+21:6  Warning: React Hook useEffect has a missing dependency: 'fetchRequests'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/components/WalletConnectButton.tsx
+51:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/dashboard/assets/page.tsx
+3:8  Warning: 'Link' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./app/hooks/useTransactionSigner.ts
+4:23  Warning: 'TransactionInstruction' is defined but never used.  @typescript-eslint/no-unused-vars
+42:26  Warning: 'lastValidBlockHeight' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+91:55  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+150:55  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+206:13  Warning: 'programId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+207:55  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/lib/blockchain.ts
+6:33  Warning: 'Transaction' is defined but never used.  @typescript-eslint/no-unused-vars
+25:9  Warning: 'programId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+33:9  Warning: 'programId' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+113:43  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+151:61  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/lib/pinata.examples.ts
+224:41  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+272:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+306:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+455:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./app/lib/pinata.ts
+203:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+232:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

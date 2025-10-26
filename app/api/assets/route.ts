@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PublicKey, Connection } from '@solana/web3.js';
+import { AnchorProvider, Program } from '@coral-xyz/anchor';
+import { SOLANA_CONFIG } from '@/app/config/solana';
+import { createConnection, getAssetRegistryProgram, formatAssetStatus } from '@/app/lib/blockchain';
+
+// Import IDL
+import AssetRegistryIDL from '../../../target/idl/asset_registry.json';
 
 // Cache for assets (in-memory, will be replaced with Redis in production)
 interface CachedAsset {
@@ -46,15 +52,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // If no cache or expired, fetch from blockchain (devnet)
-    const connection = new Connection(
-      process.env.NEXT_PUBLIC_RPC_ENDPOINT || 'https://api.devnet.solana.com',
-      'confirmed'
-    );
+    // Fetch from blockchain
+    const connection = createConnection();
+    const programId = new PublicKey(SOLANA_CONFIG.programs.assetRegistry);
 
-    // TODO: Replace with actual program query when IDL is available
-    // For now, return empty array (will be populated during testing)
-    const assets: CachedAsset[] = [];
+    // Get all asset accounts
+    const accounts = await connection.getProgramAccounts(programId, {
+      filters: [
+        {
+          // Filter for Asset accounts (discriminator check)
+          dataSize: 8 + 32 + 128 + 256 + 256 + 1 + 8 + 8 + 1, // Approximate asset account size
+        },
+      ],
+    });
+
+    const assets: CachedAsset[] = accounts.map((account) => {
+      try {
+        // Parse account data (simplified - in production, use Anchor's deserialization)
+        const data = account.account.data;
+        
+        // TODO: Properly deserialize using Anchor
+        // For now, return basic info
+        return {
+          pubkey: account.pubkey.toString(),
+          owner: '', // Will be parsed from account data
+          name: '', // Will be parsed from account data
+          location: '', // Will be parsed from account data
+          metadata_cid: '', // Will be parsed from account data
+          status: 0, // Will be parsed from account data
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000),
+        };
+      } catch (err) {
+        console.error('Error parsing asset account:', err);
+        return null;
+      }
+    }).filter((asset): asset is CachedAsset => asset !== null);
 
     // Update cache
     assetCache = {
@@ -68,6 +101,7 @@ export async function GET(request: NextRequest) {
         data: assets,
         cached: false,
         count: assets.length,
+        network: SOLANA_CONFIG.network,
       },
       { status: 200 }
     );
@@ -87,6 +121,8 @@ export async function GET(request: NextRequest) {
  * POST /api/assets
  * Register a new asset
  * Body: { name, location, metadata_cid, walletPublicKey }
+ * 
+ * This endpoint returns transaction instructions for client-side signing
  */
 export async function POST(request: NextRequest) {
   try {
@@ -124,32 +160,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (metadata_cid.length > 256) {
+    if (metadata_cid.length > 64) {
       return NextResponse.json(
         {
           success: false,
-          error: 'IPFS CID must be <= 256 characters',
+          error: 'IPFS CID must be <= 64 characters',
         },
         { status: 400 }
       );
     }
 
-    // TODO: Implement actual transaction building and signing
-    // For MVP, we'll return a mock response that includes transaction details
-    // In production, this will:
-    // 1. Create a transaction with the register_asset instruction
-    // 2. Return a partially signed transaction for client-side completion
-    // 3. Handle IPFS upload before registration
+    // Derive the asset PDA
+    const owner = new PublicKey(walletPublicKey);
+    const programId = new PublicKey(SOLANA_CONFIG.programs.assetRegistry);
+    
+    const [assetPda, assetBump] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('asset'),
+        owner.toBuffer(),
+        Buffer.from(name),
+      ],
+      programId
+    );
 
-    const mockAsset: CachedAsset = {
-      pubkey: new PublicKey(walletPublicKey).toString(),
-      owner: walletPublicKey,
-      name,
-      location,
-      metadata_cid,
-      status: 0, // ACTIVE
-      created_at: Math.floor(Date.now() / 1000),
-      updated_at: Math.floor(Date.now() / 1000),
+    // Return transaction building instructions for the client
+    // The client will use this to build and sign the transaction
+    const response = {
+      success: true,
+      message: 'Asset registration data prepared',
+      data: {
+        owner: owner.toString(),
+        name,
+        location,
+        metadata_cid,
+        assetPda: assetPda.toString(),
+        assetBump,
+        programId: programId.toString(),
+      },
+      // Instructions for client-side transaction building
+      instructions: {
+        program: 'asset_registry',
+        method: 'register_asset',
+        accounts: {
+          asset: assetPda.toString(),
+          owner: owner.toString(),
+          systemProgram: 'SystemProgram',
+        },
+        args: {
+          name,
+          location,
+          metadata_cid,
+        },
+      },
     };
 
     // Invalidate cache
@@ -158,16 +220,7 @@ export async function POST(request: NextRequest) {
       timestamp: 0,
     };
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'Asset registered successfully',
-        data: mockAsset,
-        transactionRequired: true,
-        instruction: 'register_asset',
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
     console.error('POST /api/assets error:', error);
     return NextResponse.json(

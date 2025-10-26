@@ -3,9 +3,9 @@ use anchor_lang::prelude::*;
 // Maximum lengths for string fields to prevent account bloat
 pub const MAX_ASSET_NAME_LENGTH: usize = 128;
 pub const MAX_LOCATION_LENGTH: usize = 256;
-pub const MAX_IPFS_CID_LENGTH: usize = 256;
-pub const MAX_MAINTENANCE_NOTE_LENGTH: usize = 256;
-pub const MAX_MAINTENANCE_LOGS: usize = 50;
+pub const MAX_IPFS_CID_LENGTH: usize = 64;  // Reduced from 256 to save space
+pub const MAX_MAINTENANCE_NOTE_LENGTH: usize = 128;  // Reduced from 256 to save space
+pub const MAX_MAINTENANCE_LOGS: usize = 5;  // Reduced to fit within 10KB CPI limit
 
 /// Main Asset account - represents a registered asset
 #[account]

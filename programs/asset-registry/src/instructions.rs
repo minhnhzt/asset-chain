@@ -11,7 +11,10 @@ pub struct InitializeMaintenanceLog<'info> {
     #[account(
         init,
         payer = owner,
-        space = 8 + 32 + 32 + (4 + MAX_MAINTENANCE_LOGS * 256) + 1,
+        // Space: discriminator(8) + asset(32) + owner(32) + vec_len(4) + entries(5 * 240) + bump(1)
+        // Each entry: performer(32) + note(4+128) + timestamp(8) + ipfs_cid(4+64) = 240 bytes
+        // Total: 8 + 32 + 32 + 4 + (5 * 240) + 1 = 1,277 bytes (well under 10KB limit)
+        space = 1277,
         seeds = [b"maintenance_log", asset.key().as_ref()],
         bump
     )]
