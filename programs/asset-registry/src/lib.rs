@@ -7,6 +7,8 @@ mod instructions;
 use accounts::*;
 use instructions::*;
 
+pub use crate::AssetRegistryError;
+
 declare_id!("DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST");
 
 #[program]
@@ -49,4 +51,20 @@ pub mod asset_registry {
     pub fn update_asset_status(ctx: Context<UpdateAssetStatus>, new_status: u8) -> Result<()> {
         update_asset_status_handler(ctx, new_status)
     }
+}
+
+#[error_code]
+pub enum AssetRegistryError {
+    #[msg("Unauthorized: Only asset owner can perform this action")]
+    Unauthorized,
+    #[msg("Maintenance note exceeds maximum length of 256 characters")]
+    MaintenanceNoteTooLong,
+    #[msg("IPFS CID exceeds maximum length of 256 characters")]
+    IpfsCidTooLong,
+    #[msg("Maintenance log is full (maximum 50 entries)")]
+    MaintenanceLogFull,
+    #[msg("Asset name exceeds maximum length of 128 characters")]
+    AssetNameTooLong,
+    #[msg("Location exceeds maximum length of 256 characters")]
+    LocationTooLong,
 }

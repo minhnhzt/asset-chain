@@ -3,6 +3,7 @@ use anchor_lang::solana_program::clock::Clock;
 
 use crate::accounts::*;
 use crate::events::*;
+use crate::AssetRegistryError;
 
 /// Initialize maintenance log for an asset
 #[derive(Accounts)]
@@ -32,7 +33,7 @@ pub fn initialize_maintenance_log_handler(
     maintenance_log.asset = ctx.accounts.asset.key();
     maintenance_log.owner = ctx.accounts.owner.key();
     maintenance_log.entries = Vec::new();
-    maintenance_log.bump = *ctx.bumps.get("maintenance_log").unwrap();
+    maintenance_log.bump = ctx.bumps.maintenance_log;
 
     let timestamp = Clock::get()?.unix_timestamp;
 
@@ -72,14 +73,14 @@ pub fn register_asset_handler(
     metadata_cid: String,
 ) -> Result<()> {
     // Validate inputs
-    require!(name.len() <= MAX_ASSET_NAME_LENGTH, ErrorCode::AssetNameTooLong);
+    require!(name.len() <= MAX_ASSET_NAME_LENGTH, AssetRegistryError::AssetNameTooLong);
     require!(
         location.len() <= MAX_LOCATION_LENGTH,
-        ErrorCode::LocationTooLong
+        AssetRegistryError::LocationTooLong
     );
     require!(
         metadata_cid.len() <= MAX_IPFS_CID_LENGTH,
-        ErrorCode::IpfsCidTooLong
+        AssetRegistryError::IpfsCidTooLong
     );
 
     let asset = &mut ctx.accounts.asset;
@@ -92,7 +93,7 @@ pub fn register_asset_handler(
     asset.status = AssetStatus::Active;
     asset.created_at = timestamp;
     asset.updated_at = timestamp;
-    asset.bump = *ctx.bumps.get("asset").unwrap();
+    asset.bump = ctx.bumps.asset;
 
     emit!(AssetRegistered {
         asset: asset.key(),
@@ -118,7 +119,7 @@ pub struct AddMaintenanceLog<'info> {
 
     #[account(
         mut,
-        constraint = asset.owner == owner.key() @ ErrorCode::Unauthorized
+        constraint = asset.owner == owner.key() @ AssetRegistryError::Unauthorized
     )]
     pub asset: Account<'info, Asset>,
 
@@ -134,11 +135,11 @@ pub fn add_maintenance_log_handler(
     // Validate inputs
     require!(
         note.len() <= MAX_MAINTENANCE_NOTE_LENGTH,
-        ErrorCode::MaintenanceNoteTooLong
+        AssetRegistryError::MaintenanceNoteTooLong
     );
     require!(
         ipfs_cid.len() <= MAX_IPFS_CID_LENGTH,
-        ErrorCode::IpfsCidTooLong
+        AssetRegistryError::IpfsCidTooLong
     );
 
     let maintenance_log = &mut ctx.accounts.maintenance_log;
@@ -146,7 +147,7 @@ pub fn add_maintenance_log_handler(
     // Check if log is full
     require!(
         maintenance_log.entries.len() < MAX_MAINTENANCE_LOGS,
-        ErrorCode::MaintenanceLogFull
+        AssetRegistryError::MaintenanceLogFull
     );
 
     let timestamp = Clock::get()?.unix_timestamp;
@@ -181,7 +182,7 @@ pub struct UpdateAssetMetadata<'info> {
         mut,
         seeds = [b"asset", asset.owner.as_ref(), asset.name.as_bytes()],
         bump = asset.bump,
-        constraint = asset.owner == owner.key() @ ErrorCode::Unauthorized
+        constraint = asset.owner == owner.key() @ AssetRegistryError::Unauthorized
     )]
     pub asset: Account<'info, Asset>,
 
@@ -195,7 +196,7 @@ pub fn update_asset_metadata_handler(
     // Validate input
     require!(
         new_metadata_cid.len() <= MAX_IPFS_CID_LENGTH,
-        ErrorCode::IpfsCidTooLong
+        AssetRegistryError::IpfsCidTooLong
     );
 
     let asset = &mut ctx.accounts.asset;
@@ -221,7 +222,7 @@ pub struct UpdateAssetStatus<'info> {
         mut,
         seeds = [b"asset", asset.owner.as_ref(), asset.name.as_bytes()],
         bump = asset.bump,
-        constraint = asset.owner == owner.key() @ ErrorCode::Unauthorized
+        constraint = asset.owner == owner.key() @ AssetRegistryError::Unauthorized
     )]
     pub asset: Account<'info, Asset>,
 
