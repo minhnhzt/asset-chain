@@ -28,6 +28,7 @@ export default function MultiSigRequestForm({
   const [newApproverPubkey, setNewApproverPubkey] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [anchorToBlockchain, setAnchorToBlockchain] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +169,24 @@ export default function MultiSigRequestForm({
             />
           </div>
         )}
+
+        {/* Blockchain Proof Option - NEW */}
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={anchorToBlockchain}
+              onChange={(e) => setAnchorToBlockchain(e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="ml-2 text-sm font-medium text-gray-700">
+              🔐 Anchor proof to blockchain (immutable record)
+            </span>
+          </label>
+          <p className="mt-2 text-xs text-gray-600 ml-6">
+            Optional: Creates immutable proof on Solana blockchain. Cost: ~$0.0001 SOL
+          </p>
+        </div>
 
         {/* Approval Info */}
         <div className="p-4 bg-gray-50 rounded-md border border-gray-200">

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { MultiSigRequest } from '@/app/types';
+import MultiSigProofStatus from './MultiSigProofStatus';
 
 interface MultiSigApprovalPanelProps {
   approverPubkey: string;
@@ -244,6 +245,9 @@ export default function MultiSigApprovalPanel({
                 rows={2}
               />
             </div>
+
+            {/* Blockchain Proof Status - NEW */}
+            <MultiSigProofStatus request={request} isLoading={processingId === request.id} />
 
             {/* Action Buttons */}
             <div className="flex gap-3">
