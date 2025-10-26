@@ -4,7 +4,6 @@ mod state;
 mod events;
 mod instructions;
 
-use state::*;
 use instructions::*;
 
 declare_id!("DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST");
