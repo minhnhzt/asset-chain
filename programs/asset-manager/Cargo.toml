@@ -19,6 +19,7 @@ default = []
 [dependencies]
 anchor-lang = "0.30.1"
 anchor-spl = "0.30.1"
+sha2 = "0.10"
 
 [dev-dependencies]
 solana-program-test = "~1.18.0"
