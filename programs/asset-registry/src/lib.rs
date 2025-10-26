@@ -7,7 +7,7 @@ mod instructions;
 use accounts::*;
 use instructions::*;
 
-declare_id!("AssetRegistry11111111111111111111111111111");
+declare_id!("DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST");
 
 #[program]
 pub mod asset_registry {

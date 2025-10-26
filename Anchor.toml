@@ -6,14 +6,16 @@ skip-lint = false
 anchor_version = "0.32.1"
 
 [programs.localnet]
-asset_manager = "9Vv8pXNcSPUUXvZwWM9FGYbzat4V1m9AV5fZz4Br8KxE"
+asset_manager = "Dr9AHwYYJ666sBF1v3V5RpGXYndPgHVWNatmKXHLdXg6"
+asset_registry = "DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST"
 
 [programs.devnet]
-asset_manager = "9Vv8pXNcSPUUXvZwWM9FGYbzat4V1m9AV5fZz4Br8KxE"
+asset_manager = "Dr9AHwYYJ666sBF1v3V5RpGXYndPgHVWNatmKXHLdXg6"
+asset_registry = "DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST"
 
 [programs.testnet]
-asset_registry = "11111111111111111111111111111112"
-asset_manager = "11111111111111111111111111111112"
+asset_manager = "Dr9AHwYYJ666sBF1v3V5RpGXYndPgHVWNatmKXHLdXg6"
+asset_registry = "DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST"
 
 [registry]
 url = "https://api.apr.dev"
