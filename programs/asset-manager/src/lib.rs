@@ -38,7 +38,7 @@ pub mod asset_manager {
     pub fn create_asset(
         ctx: Context<CreateAsset>,
         metadata_cid: String,
-        decimals: u8,
+        _decimals: u8,
     ) -> Result<()> {
         // Validate metadata CID length
         require!(
