@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo, Burn};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("Dr9AHwYYJ666sBF1v3V5RpGXYndPgHVWNatmKXHLdXg6");
+declare_id!("99GdmczATUfVdHEPVea3vgLSzyaGEMFJtuDgVUXmufe7");
 
 /// Maximum number of maintenance log entries per asset to prevent account bloat
 const MAX_LOG_ENTRIES: usize = 50;

@@ -6,7 +6,7 @@ mod instructions;
 
 use instructions::*;
 
-declare_id!("DT9SMSBTL361VytU1SD2k41Kk13sXRjR59QYg15yhzST");
+declare_id!("Fmis8h1QohoXVrWjE98cYgoNZTrCuivRPLXmr2NTw6o3");
 
 #[program]
 pub mod asset_registry {
