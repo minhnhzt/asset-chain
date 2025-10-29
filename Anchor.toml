@@ -5,14 +5,17 @@ skip-lint = false
 [programs.localnet]
 asset_manager = "99GdmczATUfVdHEPVea3vgLSzyaGEMFJtuDgVUXmufe7"
 asset_registry = "Fmis8h1QohoXVrWjE98cYgoNZTrCuivRPLXmr2NTw6o3"
+asset_lending = "CdXqQDN1ifc1KpDtm1FaaSihqYrdasBsmfHqP77H9gHW"
 
 [programs.devnet]
 asset_manager = "99GdmczATUfVdHEPVea3vgLSzyaGEMFJtuDgVUXmufe7"
 asset_registry = "Fmis8h1QohoXVrWjE98cYgoNZTrCuivRPLXmr2NTw6o3"
+asset_lending = "CdXqQDN1ifc1KpDtm1FaaSihqYrdasBsmfHqP77H9gHW"
 
 [programs.testnet]
 asset_manager = "99GdmczATUfVdHEPVea3vgLSzyaGEMFJtuDgVUXmufe7"
 asset_registry = "Fmis8h1QohoXVrWjE98cYgoNZTrCuivRPLXmr2NTw6o3"
+asset_lending = "CdXqQDN1ifc1KpDtm1FaaSihqYrdasBsmfHqP77H9gHW"
 
 [registry]
 url = "https://api.apr.dev"

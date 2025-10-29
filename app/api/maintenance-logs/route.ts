@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Connection } from '@solana/web3.js';
+import { Program } from '@coral-xyz/anchor';
 import { uploadMaintenanceDetails } from '@/app/lib/pinata';
+import { SOLANA_CONFIG } from '@/app/config/solana';
+import { createConnection } from '@/app/lib/blockchain';
+
+// Import IDL
+import AssetRegistryIDL from '../../../target/idl/asset_registry.json';
 
 interface MaintenanceLogEntry {
   performer: string;
@@ -29,8 +35,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate assetId is a valid Pubkey
+    let assetPubkey: PublicKey;
     try {
-      new PublicKey(assetId);
+      assetPubkey = new PublicKey(assetId);
     } catch {
       return NextResponse.json(
         {
@@ -41,18 +48,89 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Query maintenance log account from blockchain
-    // For MVP, return empty array
-    const entries: MaintenanceLogEntry[] = [];
+    // Fetch maintenance log from blockchain
+    const connection = createConnection();
+    const programId = new PublicKey(SOLANA_CONFIG.programs.assetRegistry);
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: entries,
-        count: entries.length,
-      },
-      { status: 200 }
+    // Derive maintenance log PDA
+    const [maintenanceLogPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('maintenance_log'),
+        assetPubkey.toBuffer(),
+      ],
+      programId
     );
+
+    // Create dummy provider for program
+    const dummyProvider = {
+      connection,
+      publicKey: programId,
+    } as any;
+
+    const program = new Program(AssetRegistryIDL as any, dummyProvider);
+
+    try {
+      // Fetch the maintenance log account
+      const accountInfo = await connection.getAccountInfo(maintenanceLogPda);
+
+      if (!accountInfo) {
+        // Maintenance log not initialized yet
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              asset: assetId,
+              owner: '',
+              entries: [],
+            },
+            count: 0,
+          },
+          { status: 200 }
+        );
+      }
+
+      // Deserialize maintenance log
+      const maintenanceLog = program.coder.accounts.decode(
+        'MaintenanceLog',
+        accountInfo.data
+      );
+
+      // Format entries
+      const entries: MaintenanceLogEntry[] = maintenanceLog.entries.map((entry: any) => ({
+        performer: entry.performer.toString(),
+        note: entry.note,
+        timestamp: entry.timestamp?.toNumber() || 0,
+        ipfs_cid: entry.ipfsCid || entry.ipfs_cid || '',
+      }));
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            asset: maintenanceLog.asset.toString(),
+            owner: maintenanceLog.owner.toString(),
+            entries,
+          },
+          count: entries.length,
+        },
+        { status: 200 }
+      );
+    } catch (deserializeError) {
+      console.error('Error deserializing maintenance log:', deserializeError);
+      // Return empty if account exists but can't be deserialized
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            asset: assetId,
+            owner: '',
+            entries: [],
+          },
+          count: 0,
+        },
+        { status: 200 }
+      );
+    }
   } catch (error) {
     console.error('GET /api/maintenance-logs error:', error);
     return NextResponse.json(

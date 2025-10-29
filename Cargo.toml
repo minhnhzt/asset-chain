@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/asset-manager"]
+members = ["programs/asset-manager", "programs/asset-lending"]
 exclude = ["programs/asset-registry"]
 resolver = "2"
 

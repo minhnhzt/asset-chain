@@ -56,38 +56,62 @@ export async function GET(request: NextRequest) {
     const connection = createConnection();
     const programId = new PublicKey(SOLANA_CONFIG.programs.assetRegistry);
 
-    // Get all asset accounts
+    // Create a dummy AnchorProvider for the Program
+    // Note: We only need this to access the program's coder for deserialization
+    const dummyProvider = {
+      connection,
+      publicKey: programId,
+    } as any;
+
+    // Create program instance with IDL
+    const program = new Program(AssetRegistryIDL as any, dummyProvider);
+
+    // Get all asset accounts using the Asset account discriminator
+    // The discriminator is the first 8 bytes and identifies the account type
     const accounts = await connection.getProgramAccounts(programId, {
       filters: [
         {
-          // Filter for Asset accounts (discriminator check)
-          dataSize: 8 + 32 + 128 + 256 + 256 + 1 + 8 + 8 + 1, // Approximate asset account size
+          // Filter for accounts with reasonable size (Asset accounts)
+          // Asset size: 8 (discriminator) + 32 (owner) + 4+128 (name string) + 4+256 (location) + 4+256 (metadata_cid) + 1 (status) + 8 (created_at) + 8 (updated_at) + 1 (bump)
+          // Approximate: 710 bytes minimum, let's allow up to 1024
+          dataSize: 710,
         },
       ],
     });
 
-    const assets: CachedAsset[] = accounts.map((account) => {
+    const assets: CachedAsset[] = [];
+
+    for (const account of accounts) {
       try {
-        // Parse account data (simplified - in production, use Anchor's deserialization)
-        const data = account.account.data;
-        
-        // TODO: Properly deserialize using Anchor
-        // For now, return basic info
-        return {
+        // Deserialize using Anchor's coder
+        const asset = program.coder.accounts.decode(
+          'Asset',
+          account.account.data
+        );
+
+        // Convert to our CachedAsset format
+        const status = 
+          asset.status.active !== undefined ? 0 :
+          asset.status.maintenance !== undefined ? 1 :
+          asset.status.retired !== undefined ? 2 :
+          asset.status.disposed !== undefined ? 3 : 0;
+
+        assets.push({
           pubkey: account.pubkey.toString(),
-          owner: '', // Will be parsed from account data
-          name: '', // Will be parsed from account data
-          location: '', // Will be parsed from account data
-          metadata_cid: '', // Will be parsed from account data
-          status: 0, // Will be parsed from account data
-          created_at: Math.floor(Date.now() / 1000),
-          updated_at: Math.floor(Date.now() / 1000),
-        };
+          owner: asset.owner.toString(),
+          name: asset.name,
+          location: asset.location,
+          metadata_cid: asset.metadataCid || asset.metadata_cid || '',
+          status: status,
+          created_at: asset.createdAt?.toNumber() || asset.created_at?.toNumber() || 0,
+          updated_at: asset.updatedAt?.toNumber() || asset.updated_at?.toNumber() || 0,
+        });
       } catch (err) {
-        console.error('Error parsing asset account:', err);
-        return null;
+        console.error('Error deserializing asset account:', account.pubkey.toString(), err);
+        // Skip accounts that fail to deserialize
+        continue;
       }
-    }).filter((asset): asset is CachedAsset => asset !== null);
+    }
 
     // Update cache
     assetCache = {

@@ -1,0 +1,585 @@
+use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Token, TokenAccount, Transfer, Mint, CloseAccount};
+use anchor_spl::associated_token::AssociatedToken;
+
+declare_id!("CdXqQDN1ifc1KpDtm1FaaSihqYrdasBsmfHqP77H9gHW");
+
+#[program]
+pub mod asset_lending {
+    use super::*;
+
+    /// Khởi tạo khoản mượn - Owner cho mượn NFT cho Borrower
+    /// NFT sẽ được ký quỹ trong PDA để đảm bảo an toàn
+    pub fn lend_asset(
+        ctx: Context<LendAsset>,
+        borrower: Pubkey,
+        loan_duration_seconds: i64,
+    ) -> Result<()> {
+        let loan_escrow = &mut ctx.accounts.loan_escrow;
+        let clock = Clock::get()?;
+
+        // Kiểm tra loan_duration hợp lệ (ít nhất 1 giờ, tối đa 1 năm)
+        require!(
+            loan_duration_seconds >= 3600 && loan_duration_seconds <= 31536000,
+            LendingError::InvalidLoanDuration
+        );
+
+        // Khởi tạo thông tin khoản mượn
+        loan_escrow.owner = ctx.accounts.owner.key();
+        loan_escrow.borrower = borrower;
+        loan_escrow.asset_mint = ctx.accounts.asset_mint.key();
+        loan_escrow.loan_start_time = clock.unix_timestamp;
+        loan_escrow.loan_end_time = clock.unix_timestamp
+            .checked_add(loan_duration_seconds)
+            .ok_or(LendingError::MathOverflow)?;
+        loan_escrow.bump = ctx.bumps.loan_escrow;
+        loan_escrow.status = LoanStatus::Active;
+
+        // Chuyển NFT từ Owner vào PDA Escrow (ký quỹ)
+        let transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.owner_token_account.to_account_info(),
+                to: ctx.accounts.escrow_token_account.to_account_info(),
+                authority: ctx.accounts.owner.to_account_info(),
+            },
+        );
+        token::transfer(transfer_ctx, 1)?;
+
+        emit!(AssetLendedEvent {
+            loan_escrow: loan_escrow.key(),
+            owner: loan_escrow.owner,
+            borrower: loan_escrow.borrower,
+            asset_mint: loan_escrow.asset_mint,
+            loan_start_time: loan_escrow.loan_start_time,
+            loan_end_time: loan_escrow.loan_end_time,
+        });
+
+        msg!(
+            "✅ Asset lended: {} to {} until {}",
+            loan_escrow.asset_mint,
+            loan_escrow.borrower,
+            loan_escrow.loan_end_time
+        );
+
+        Ok(())
+    }
+
+    /// Hoàn trả tài sản - Borrower trả lại NFT cho Owner
+    /// Có thể trả sớm trước khi hết hạn
+    pub fn return_asset(ctx: Context<ReturnAsset>) -> Result<()> {
+        let loan_escrow = &ctx.accounts.loan_escrow;
+
+        // Xác thực người gọi là Borrower
+        require!(
+            ctx.accounts.borrower.key() == loan_escrow.borrower,
+            LendingError::UnauthorizedBorrower
+        );
+
+        // Kiểm tra trạng thái khoản mượn
+        require!(
+            loan_escrow.status == LoanStatus::Active,
+            LendingError::LoanNotActive
+        );
+
+        // Chuẩn bị seeds cho PDA signature
+        let asset_mint_key = loan_escrow.asset_mint;
+        let owner_key = loan_escrow.owner;
+        let bump = loan_escrow.bump;
+        let seeds = &[
+            b"loan_escrow",
+            owner_key.as_ref(),
+            asset_mint_key.as_ref(),
+            &[bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Chuyển NFT từ PDA Escrow về lại cho Owner
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.owner_token_account.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, 1)?;
+
+        // Đóng Escrow Token Account và hoàn lại SOL cho Owner
+        let close_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.escrow_token_account.to_account_info(),
+                destination: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::close_account(close_ctx)?;
+
+        emit!(AssetReturnedEvent {
+            loan_escrow: loan_escrow.key(),
+            borrower: ctx.accounts.borrower.key(),
+            asset_mint: loan_escrow.asset_mint,
+            returned_at: Clock::get()?.unix_timestamp,
+        });
+
+        msg!(
+            "✅ Asset returned: {} by borrower {}",
+            loan_escrow.asset_mint,
+            ctx.accounts.borrower.key()
+        );
+
+        Ok(())
+    }
+
+    /// Thu hồi tài sản - Owner lấy lại NFT sau khi hết hạn
+    /// Chỉ được phép sau khi loan_end_time
+    pub fn reclaim_asset(ctx: Context<ReclaimAsset>) -> Result<()> {
+        let loan_escrow = &ctx.accounts.loan_escrow;
+        let clock = Clock::get()?;
+
+        // Xác thực người gọi là Owner
+        require!(
+            ctx.accounts.owner.key() == loan_escrow.owner,
+            LendingError::UnauthorizedOwner
+        );
+
+        // Kiểm tra trạng thái khoản mượn
+        require!(
+            loan_escrow.status == LoanStatus::Active,
+            LendingError::LoanNotActive
+        );
+
+        // KIỂM TRA CỐT LÕI: Thời gian hiện tại phải > loan_end_time
+        require!(
+            clock.unix_timestamp > loan_escrow.loan_end_time,
+            LendingError::LoanNotExpired
+        );
+
+        // Chuẩn bị seeds cho PDA signature
+        let asset_mint_key = loan_escrow.asset_mint;
+        let owner_key = loan_escrow.owner;
+        let bump = loan_escrow.bump;
+        let seeds = &[
+            b"loan_escrow",
+            owner_key.as_ref(),
+            asset_mint_key.as_ref(),
+            &[bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Chuyển NFT từ PDA Escrow về lại cho Owner
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.owner_token_account.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, 1)?;
+
+        // Đóng Escrow Token Account và hoàn lại SOL cho Owner
+        let close_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.escrow_token_account.to_account_info(),
+                destination: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::close_account(close_ctx)?;
+
+        emit!(AssetReclaimedEvent {
+            loan_escrow: loan_escrow.key(),
+            owner: ctx.accounts.owner.key(),
+            asset_mint: loan_escrow.asset_mint,
+            reclaimed_at: clock.unix_timestamp,
+            overdue_by: clock.unix_timestamp - loan_escrow.loan_end_time,
+        });
+
+        msg!(
+            "✅ Asset reclaimed: {} by owner {} (overdue by {} seconds)",
+            loan_escrow.asset_mint,
+            ctx.accounts.owner.key(),
+            clock.unix_timestamp - loan_escrow.loan_end_time
+        );
+
+        Ok(())
+    }
+
+    /// Thu hồi sớm - Owner hủy khoản mượn và lấy lại NFT ngay lập tức
+    /// Có thể sử dụng trong trường hợp khẩn cấp
+    pub fn revoke_loan(ctx: Context<RevokeLoan>) -> Result<()> {
+        let loan_escrow = &ctx.accounts.loan_escrow;
+
+        // Xác thực người gọi là Owner
+        require!(
+            ctx.accounts.owner.key() == loan_escrow.owner,
+            LendingError::UnauthorizedOwner
+        );
+
+        // Kiểm tra trạng thái khoản mượn
+        require!(
+            loan_escrow.status == LoanStatus::Active,
+            LendingError::LoanNotActive
+        );
+
+        // Chuẩn bị seeds cho PDA signature
+        let asset_mint_key = loan_escrow.asset_mint;
+        let owner_key = loan_escrow.owner;
+        let bump = loan_escrow.bump;
+        let seeds = &[
+            b"loan_escrow",
+            owner_key.as_ref(),
+            asset_mint_key.as_ref(),
+            &[bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Chuyển NFT từ PDA Escrow về lại cho Owner
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.owner_token_account.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, 1)?;
+
+        // Đóng Escrow Token Account và hoàn lại SOL cho Owner
+        let close_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.escrow_token_account.to_account_info(),
+                destination: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.loan_escrow.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::close_account(close_ctx)?;
+
+        emit!(LoanRevokedEvent {
+            loan_escrow: loan_escrow.key(),
+            owner: ctx.accounts.owner.key(),
+            borrower: loan_escrow.borrower,
+            asset_mint: loan_escrow.asset_mint,
+            revoked_at: Clock::get()?.unix_timestamp,
+        });
+
+        msg!(
+            "✅ Loan revoked: {} by owner {} (early termination)",
+            loan_escrow.asset_mint,
+            ctx.accounts.owner.key()
+        );
+
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Account Structures
+// ============================================================================
+
+/// LoanEscrowAccount - PDA lưu trữ trạng thái khoản mượn
+/// Seeds: ["loan_escrow", owner, asset_mint]
+#[account]
+pub struct LoanEscrowAccount {
+    /// Chủ sở hữu tài sản (người cho mượn)
+    pub owner: Pubkey,
+    
+    /// Người mượn tài sản
+    pub borrower: Pubkey,
+    
+    /// Địa chỉ mint của NFT
+    pub asset_mint: Pubkey,
+    
+    /// Thời điểm bắt đầu cho mượn (Unix timestamp)
+    pub loan_start_time: i64,
+    
+    /// Thời điểm kết thúc khoản mượn (Unix timestamp)
+    pub loan_end_time: i64,
+    
+    /// Trạng thái khoản mượn
+    pub status: LoanStatus,
+    
+    /// PDA bump seed
+    pub bump: u8,
+}
+
+impl LoanEscrowAccount {
+    /// Kích thước account: 8 (discriminator) + 32 + 32 + 32 + 8 + 8 + 1 + 1 = 122 bytes
+    pub const SIZE: usize = 8 + 32 + 32 + 32 + 8 + 8 + 1 + 1;
+}
+
+/// Trạng thái của khoản mượn
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum LoanStatus {
+    /// Khoản mượn đang hoạt động
+    Active,
+    /// Đã hoàn trả
+    Returned,
+    /// Đã thu hồi
+    Reclaimed,
+    /// Đã hủy bỏ
+    Revoked,
+}
+
+// ============================================================================
+// Context Structures (Instructions)
+// ============================================================================
+
+/// Context cho instruction: lend_asset
+#[derive(Accounts)]
+#[instruction(borrower: Pubkey)]
+pub struct LendAsset<'info> {
+    /// Chủ sở hữu tài sản (người cho mượn)
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    /// Tài khoản PDA lưu trữ thông tin khoản mượn
+    #[account(
+        init,
+        payer = owner,
+        space = LoanEscrowAccount::SIZE,
+        seeds = [
+            b"loan_escrow",
+            owner.key().as_ref(),
+            asset_mint.key().as_ref()
+        ],
+        bump
+    )]
+    pub loan_escrow: Account<'info, LoanEscrowAccount>,
+
+    /// Mint account của NFT
+    #[account(
+        constraint = asset_mint.supply == 1 @ LendingError::NotNFT,
+        constraint = asset_mint.decimals == 0 @ LendingError::NotNFT,
+    )]
+    pub asset_mint: Account<'info, Mint>,
+
+    /// Token account của Owner chứa NFT
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == owner.key() @ LendingError::InvalidTokenAccount,
+        constraint = owner_token_account.mint == asset_mint.key() @ LendingError::InvalidTokenAccount,
+        constraint = owner_token_account.amount == 1 @ LendingError::InsufficientTokens,
+    )]
+    pub owner_token_account: Account<'info, TokenAccount>,
+
+    /// Token account của PDA Escrow để nhận NFT
+    #[account(
+        init,
+        payer = owner,
+        associated_token::mint = asset_mint,
+        associated_token::authority = loan_escrow,
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
+
+/// Context cho instruction: return_asset
+#[derive(Accounts)]
+pub struct ReturnAsset<'info> {
+    /// Người mượn (người trả lại NFT)
+    #[account(mut)]
+    pub borrower: Signer<'info>,
+
+    /// Chủ sở hữu tài sản (người nhận lại NFT)
+    /// CHECK: Sẽ được xác thực thông qua loan_escrow.owner
+    #[account(mut)]
+    pub owner: UncheckedAccount<'info>,
+
+    /// Tài khoản PDA lưu trữ thông tin khoản mượn
+    #[account(
+        mut,
+        close = owner,
+        seeds = [
+            b"loan_escrow",
+            loan_escrow.owner.as_ref(),
+            loan_escrow.asset_mint.as_ref()
+        ],
+        bump = loan_escrow.bump,
+    )]
+    pub loan_escrow: Account<'info, LoanEscrowAccount>,
+
+    /// Token account của PDA Escrow chứa NFT
+    #[account(
+        mut,
+        constraint = escrow_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+        constraint = escrow_token_account.amount == 1 @ LendingError::InsufficientTokens,
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
+    /// Token account của Owner để nhận lại NFT
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == loan_escrow.owner @ LendingError::InvalidTokenAccount,
+        constraint = owner_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+    )]
+    pub owner_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+/// Context cho instruction: reclaim_asset
+#[derive(Accounts)]
+pub struct ReclaimAsset<'info> {
+    /// Chủ sở hữu tài sản (người thu hồi NFT)
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    /// Tài khoản PDA lưu trữ thông tin khoản mượn
+    #[account(
+        mut,
+        close = owner,
+        seeds = [
+            b"loan_escrow",
+            loan_escrow.owner.as_ref(),
+            loan_escrow.asset_mint.as_ref()
+        ],
+        bump = loan_escrow.bump,
+    )]
+    pub loan_escrow: Account<'info, LoanEscrowAccount>,
+
+    /// Token account của PDA Escrow chứa NFT
+    #[account(
+        mut,
+        constraint = escrow_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+        constraint = escrow_token_account.amount == 1 @ LendingError::InsufficientTokens,
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
+    /// Token account của Owner để nhận lại NFT
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == loan_escrow.owner @ LendingError::InvalidTokenAccount,
+        constraint = owner_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+    )]
+    pub owner_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+/// Context cho instruction: revoke_loan
+#[derive(Accounts)]
+pub struct RevokeLoan<'info> {
+    /// Chủ sở hữu tài sản (người hủy khoản mượn)
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    /// Tài khoản PDA lưu trữ thông tin khoản mượn
+    #[account(
+        mut,
+        close = owner,
+        seeds = [
+            b"loan_escrow",
+            loan_escrow.owner.as_ref(),
+            loan_escrow.asset_mint.as_ref()
+        ],
+        bump = loan_escrow.bump,
+    )]
+    pub loan_escrow: Account<'info, LoanEscrowAccount>,
+
+    /// Token account của PDA Escrow chứa NFT
+    #[account(
+        mut,
+        constraint = escrow_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+        constraint = escrow_token_account.amount == 1 @ LendingError::InsufficientTokens,
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
+    /// Token account của Owner để nhận lại NFT
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == loan_escrow.owner @ LendingError::InvalidTokenAccount,
+        constraint = owner_token_account.mint == loan_escrow.asset_mint @ LendingError::InvalidTokenAccount,
+    )]
+    pub owner_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+// ============================================================================
+// Events
+// ============================================================================
+
+#[event]
+pub struct AssetLendedEvent {
+    pub loan_escrow: Pubkey,
+    pub owner: Pubkey,
+    pub borrower: Pubkey,
+    pub asset_mint: Pubkey,
+    pub loan_start_time: i64,
+    pub loan_end_time: i64,
+}
+
+#[event]
+pub struct AssetReturnedEvent {
+    pub loan_escrow: Pubkey,
+    pub borrower: Pubkey,
+    pub asset_mint: Pubkey,
+    pub returned_at: i64,
+}
+
+#[event]
+pub struct AssetReclaimedEvent {
+    pub loan_escrow: Pubkey,
+    pub owner: Pubkey,
+    pub asset_mint: Pubkey,
+    pub reclaimed_at: i64,
+    pub overdue_by: i64,
+}
+
+#[event]
+pub struct LoanRevokedEvent {
+    pub loan_escrow: Pubkey,
+    pub owner: Pubkey,
+    pub borrower: Pubkey,
+    pub asset_mint: Pubkey,
+    pub revoked_at: i64,
+}
+
+// ============================================================================
+// Error Codes
+// ============================================================================
+
+#[error_code]
+pub enum LendingError {
+    #[msg("Thời gian cho mượn không hợp lệ (phải từ 1 giờ đến 1 năm)")]
+    InvalidLoanDuration,
+
+    #[msg("Khoản mượn chưa hết hạn, không thể thu hồi")]
+    LoanNotExpired,
+
+    #[msg("Chỉ Owner mới được phép thực hiện hành động này")]
+    UnauthorizedOwner,
+
+    #[msg("Chỉ Borrower mới được phép thực hiện hành động này")]
+    UnauthorizedBorrower,
+
+    #[msg("Token account không hợp lệ")]
+    InvalidTokenAccount,
+
+    #[msg("Tài sản không phải là NFT (supply phải = 1, decimals = 0)")]
+    NotNFT,
+
+    #[msg("Không đủ tokens trong tài khoản")]
+    InsufficientTokens,
+
+    #[msg("Phép tính toán học bị overflow")]
+    MathOverflow,
+
+    #[msg("Khoản mượn không còn ở trạng thái Active")]
+    LoanNotActive,
+}
